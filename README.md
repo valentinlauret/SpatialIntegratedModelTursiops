@@ -1,6 +1,10 @@
 # Spatial Integrated Model Tursiops
 
 Codes and data to run spatial integrated model for bottlenose dolphins in the NW Mediterranean Sea.
+This repository contains all codes and data to run all models present in our manuscript. Please contact me if something goes wrong with the code, or for any question.
+
+Twitter: [@ValentinLauret](https://twitter.com/ValentinLauret)
+Mail: [valentin.lauret@cefe.cnrs.fr](mailto:valentin.lauret@ens-lyon.fr)
 
 # DS model 
 
