@@ -6,6 +6,10 @@ This repository contains all codes and data to run all models present in our man
 Twitter: [@ValentinLauret](https://twitter.com/ValentinLauret)
 Mail: [valentin.lauret@cefe.cnrs.fr](mailto:valentin.lauret@ens-lyon.fr)
 
+---
+
+To have an overview of data and results, check this [document](DataAndResults.pdf). For R codes, see below.
+
 # DS model 
 
   * [Data and codes](DS/) to run the DS analyze from aerial line-transects
