@@ -10,6 +10,10 @@ Mail: [valentin.lauret@cefe.cnrs.fr](mailto:valentin.lauret@ens-lyon.fr)
 
 To have an overview of data and results, check this [document](DataAndResults.pdf). For R codes, see below.
 
+# Data exploration
+
+In [this file](DataAndResults.pdf), we described the context of bottlenose dolphin _(Tursiops truncatus)_ monitoring in the French Mediterranean Sea. We provided a regional map of the study area, and a map of the monitoring programs used in this analyze. Then, we briefly displayed results of the comparison between models.
+
 # DS model 
 
   * [Data and codes](DS/) to run the DS analyze from aerial line-transects
