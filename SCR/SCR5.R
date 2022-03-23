@@ -151,6 +151,9 @@ SCRcode <-  nimbleCode({
   # logit regression of pbar
   logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seff[1:ntrap,1:nocc] 
   
+  # cell prob
+  #cellprob[1:nsites] <- mu[1:nsites]/(sum(mu[1:nsites]))
+  
   # data augmentation
   for(i in 1:M) {
     
@@ -163,6 +166,10 @@ SCRcode <-  nimbleCode({
     SX[i] <- sites[round(id[i]),1]
     SY[i] <- sites[round(id[i]),2]
 
+    #one's trick
+    pOK[i] <- mu[id[i]]
+    OK[i] ~ dbern(pOK[i])
+    
     ## DT: likelihood using new dBernoulliVector4 distribution:
     y.scr[i, 1:nocc, 1:MAX] ~ dBernoulliVector4(
       MAX = MAX, ntrap = ntrap, nocc = nocc,
@@ -235,7 +242,7 @@ inits <-  list(z=datSCR$z,id = datSCR$id, mu0=0,mu1=0,beta0 = 0, beta1 = 0, p0 =
 
   # Build model
 Rmodel <- nimbleModel(SCRcode, constants, data, inits)
- 
+ Rmodel$calculate()
 # configure model
 conf <- configureMCMC(Rmodel)
     
@@ -253,9 +260,9 @@ conf <- configureMCMC(Rmodel)
   conf$addSampler(c("p0","p1"), type ="RW_block")
   conf$printSamplers(byType= TRUE)
   
-  conf$removeSamplers('id')
-  conf$addSampler('id', type = 'RW', scalarComponents = TRUE,
-                  control = list(adaptive = FALSE, reflective = TRUE, scale = datSCR$nsites/3)) ## DT
+  #conf$removeSamplers('id')
+  #conf$addSampler('id', type = 'RW', scalarComponents = TRUE,
+  #                control = list(adaptive = FALSE, reflective = TRUE, scale = datSCR$nsites/3)) ## DT
   
   
   # Build and compile MCMC
@@ -267,6 +274,8 @@ conf <- configureMCMC(Rmodel)
   # ART: 3 days
 t <- system.time(samples <- runMCMC(Cmcmc, niter = 100000, nburnin = 35000, nchains = 3, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
 
+# ART : 
+t <- system.time(samples <- runMCMC(Cmcmc, niter = 1000, nburnin = 350, nchains = 1, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
 
 save(samples,t, file ="SCRres.Rdata")
 

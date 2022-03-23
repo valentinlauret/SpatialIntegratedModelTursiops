@@ -217,13 +217,16 @@ SIMcode <-  nimbleCode({
   # logit regression of pbar
   logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seffSCR[1:ntrap,1:nocc] 
   
+  # cell prob
+  # cellprob[1:nsites] <- mu[1:nsites]/(sum(mu[1:nsites]))
+  
   # data augmentation
   for( i in 1:M){ #
     
     z[i] ~ dbern(psi)  # is i alive or not ?
     
     # induce the uniform distribution of activity centers over the discrete set 1:nsites
-    id[i] ~ dunif(0.5, nsites+0.5) 
+    id[i] ~  dcat(mu[1:nsites]) # dunif(0.5, nsites+0.5) #
     
     # location of AC
     SX[i] <- sites[round(id[i]),1]
@@ -286,7 +289,7 @@ dBernoulliVector4 <- nimbleFunction(
     for(s in 1:ntrap) {
       dist <- (SX-traploc[s,1])^2 + (SY-traploc[s,2])^2
       for(j in 1:nocc) {
-        p <- pbar[s,j]*max(min(exp(-dist/(2*sigma[s,j]^2)),0.999),0.001)
+        p <-  pbar[s,j]*max(min(exp(-dist/(2*sigma[s,j]^2)),0.999),0.001)*eff.ind[s,j]
         if(x[j,xInd[j]] == s) {
           lp <- lp + log(p)
           if(xInd[j] < MAX) xInd[j] <- xInd[j] + 1
@@ -341,7 +344,7 @@ inits <- list(alpha0=0, alpha1=0,alpha2= 0,beta0=0, beta1 = 0,mu0=0,mu1=0,p0=0,p
 # Build model 
 
   Rmodel <- nimbleModel(SIMcode, constants, data, inits)
-
+ Rmodel$calculate() #_121041
   # Configure monitors
   conf <- configureMCMC(Rmodel)
   
@@ -366,7 +369,7 @@ inits <- list(alpha0=0, alpha1=0,alpha2= 0,beta0=0, beta1 = 0,mu0=0,mu1=0,p0=0,p
   
   conf$removeSamplers('id')
   conf$addSampler('id', type = 'RW', scalarComponents = TRUE,
-                  control = list(adaptive = FALSE, reflective = TRUE, scale = datSCR$nsites/3))
+                 control = list(adaptive = FALSE, reflective = TRUE, scale = datSCR$nsites/3))
   
   
   # Build and compile MCMC
@@ -377,7 +380,8 @@ inits <- list(alpha0=0, alpha1=0,alpha2= 0,beta0=0, beta1 = 0,mu0=0,mu1=0,p0=0,p
   # Run 
   # ART : 2.5 days
   t <- system.time(samples <- runMCMC(Cmcmc, niter = 100000, nburnin = 35000, nchains = 3, samplesAsCodaMCMC = TRUE))  ## DT: use runMCMC
+  # ART: 500s
+  t <- system.time(samples <- runMCMC(Cmcmc, niter = 1000, nburnin = 350, nchains = 1, samplesAsCodaMCMC = TRUE))  ## DT: use runMCMC
   
-
 save(samples,t, file ="SIMres.rdata")
 
