@@ -195,7 +195,7 @@ SIMcode <-  nimbleCode({
   sigma.scr ~ dunif(10^2,10^5) 
   sig2 <- 2*sigma.scr*sigma.scr
   # priors for the sigma DS regression
-  sigma.ds ~ dunif(0,2) 
+  sigma.ds ~ dunif(0,5) 
   # priors for the pbar SCR regression
   p0 ~ dnorm(0,1) # Intercept
   p1 ~ dnorm(0,1) # slope

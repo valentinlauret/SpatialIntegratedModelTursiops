@@ -137,7 +137,7 @@ SCRcode <-  nimbleCode({
   mu0 ~ dnorm(0,1) # Intercept of mu-density regression
   mu1 ~ dnorm(0,1) # slope of unique covariate for now
   # priors for the sigma 
-  sigma ~ dunif(10^2,10^5)
+  sigma ~ dunif(10,10^5)
   sig2 <- 2*sigma*sigma
   # priors for the pbar regression
   p0 ~ dnorm(0,1) 
@@ -240,10 +240,19 @@ constants <-  list(nsites = datSCR$nsites, nocc = datSCR$nocc, M = datSCR$M, ntr
 data <- list(sites= datSCR$sites, y.scr = datSCR$y.scr, zeros = rep(0,M))
 
 # Inits
-inits <-  list(z=datSCR$z,id = datSCR$id, mu0=0,mu1=0,sigma = runif(1,10^2,10^5), p0 = 0, p1= 0, psi = runif(1,0,1))
+inits <-  list(z=datSCR$z,id = datSCR$id, mu0=0,mu1=0,sigma = 10^5, p0 = 0, p1= 0)
 
 # NIMBLE RUN ----
-
+# Nimble mcmc 
+# nimbleMCMC
+out <- nimbleMCMC(code = SCRcode,
+                  data = data,
+                  constants = constants,
+                  inits = inits,
+                  monitors = c("EN","mu0", "mu1","sigma","p0","p1"),
+                  niter = 100,
+                  nburnin = 20,
+                  nchains = 1)
   # Build model
 Rmodel <- nimbleModel(SCRcode, constants, data, inits)
  Rmodel$calculate() # - 262110
@@ -278,10 +287,13 @@ conf <- configureMCMC(Rmodel)
 t <- system.time(samples <- runMCMC(Cmcmc, niter = 50000, nburnin = 5000, nchains = 2, thin = 10, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
 
 # ART : 6 min
-t <- system.time(samples <- runMCMC(Cmcmc, niter = 1000, nburnin = 100, nchains = 2, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
+t <- system.time(samples <- runMCMC(Cmcmc, niter = 1000, nburnin = 100, nchains = 1, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
 
-niter_ad <- 6000
-CsurvivalMCMC$run(niter_ad, reset = FALSE)
+niter_ad <- 3000
+Cmcmc$run(niter_ad, reset = FALSE)
+more_samples <- as.matrix(Cmcmc$mvSamples)
+samplesSummary(more_samples)
+summary(more_samples[c(1901:3900),c("EN","mu0","mu1","sigma")])
 
 traplot(samples[,c("EN","mu0","mu1","sigma.ds","sigma.scr")])
 save(samples,t, file ="SCR_sig0res2.Rdata")

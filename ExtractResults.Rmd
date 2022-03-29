@@ -24,6 +24,7 @@ library(mcmcplots)
 library(coda)
 library(tidyverse)
 library(kableExtra)
+library(here)
 load("sea.grid.Rdata")
 load("pays.rdata")
 
@@ -37,7 +38,7 @@ knitr::opts_chunk$set(dpi = 300,
 
 Load results without plotting the posterior distribution.
 ```{r message=FALSE, warning=FALSE, include=FALSE}
-load("DS/DSfull.Rdata")
+load("Work/ResultatsCluster/DS_sig0res.Rdata")
 # load("~/Google Drive/GITHUB/Spatial-abundance-tursiops/DS/DSfull.Rdata")
 denplot(samples[,c("sigma","EN")])
 outputDS <- summary(samples)
@@ -151,13 +152,13 @@ Load results without posterior distribution
 
 ```{r include=FALSE}
 # load("SCR/SCRparafull.rdata")
-load("~/Google Drive/GITHUB/Spatial-abundance-tursiops/SCR0trickGOOD40k.rdata")
-denplot(samples2[,c("EN","mu0","mu1")])
+load("Work/ResultatsCluster/SCR_sig0res2.rdata")
+
 # SCR
 dataSCR <- function(M = double(0)){
   
   # load data 
-  load("SCR5.rdata")
+  load("SCR/SCR5.rdata")
   
   
   y.scr <- y.scr[,samp.sites,] # subset the detection history matrix to sampled sites only
@@ -264,12 +265,14 @@ M <- 5000
 datSCR <- dataSCR(M = M)
 
 #str(samples2) # Warning : it is the result of a parallelization of 3 chains that contain each 3 chians 
-ch <- samples2
+ch <- samples
 ```
 
 ```{r eval=FALSE, include=FALSE}
+traplot(samples[,c("EN","mu1","p0","p1","sigma")])
 denplot(samples[,c("EN","mu1","p0","p1","sigma")])
-# ch1 <- SCRp10[1]
+
+ ch1 <- samples[1]
 # 
 # ch2 <- SCRp10[2]
 # 
@@ -302,7 +305,7 @@ denplot(samples[,c("EN","mu1","p0","p1","sigma")])
 Abundance predicted via the point process $lambda$ 
 
 ```{r echo=FALSE}
-load("~/Google Drive/GITHUB/Spatial-abundance-tursiops/sea.grid.rdata")
+load("sea.grid.rdata")
 
 # cch <- coda::as.mcmc.list(samples2)
 # dim(SCR[[1]])
@@ -313,13 +316,14 @@ load("~/Google Drive/GITHUB/Spatial-abundance-tursiops/sea.grid.rdata")
 # head(ch)
 dim(ch)
 
-ch <- ch[10000:nrow(ch),]
-sigmascr <- matrix(NA,nrow= nrow(ch),ncol = length(datSCR$seff[datSCR$seff>0]))
+ch <- data.frame(bind_rows(as_tibble(samples$chain1), as_tibble(samples$chain2)))
+
+#ch <- ch[10000:nrow(ch),]
 res2 <- matrix(NA,nrow= nrow(ch),ncol = nrow(sea$bathy.sc))
 p0scr_scr <- matrix(NA,nrow= nrow(ch),ncol = length(datSCR$seff[datSCR$seff>0]))
 
 mu0scr <- mu1scr <- rep(NA,nrow(ch))
-beta0scr <- beta1scr <- rep(NA,nrow(ch))
+sigmascr <- rep(NA,nrow(ch))
 p0scr <- p1scr <- rep(NA,nrow(ch))
 
 for(i in 1:nrow(res2)){
@@ -327,9 +331,9 @@ for(i in 1:nrow(res2)){
     mu0scr[i] <- ch[i,"mu0"]
     mu1scr[i] <- ch[i,"mu1"]
     
-    beta0scr[i] <- ch[i,"beta0"]
-    beta1scr[i] <- ch[i,"beta1"]
-    sigmascr[i,] <- exp(beta0scr[i] + beta1scr[i]*datSCR$seff[datSCR$seff>0])
+    #beta0scr[i] <- ch[i,"beta0"]
+    #beta1scr[i] <- ch[i,"beta1"]
+    #sigmascr[i,] <- exp(beta0scr[i] + beta1scr[i]*datSCR$seff[datSCR$seff>0])
     
     p0scr[i] <- ch[i,"p0"]
     p1scr[i] <- ch[i,"p1"]
@@ -345,7 +349,7 @@ summary(resSCR)
 Map of the density surface $\lambda$.
 
 ```{r echo=FALSE}
-load("~/Google Drive/GITHUB/Spatial-abundance-tursiops/pays.rdata")
+load("pays.rdata")
 library(cowplot)
 library(ggplot2)
 map2 <- ggplot()+ geom_sf(data = sea, aes(fill = matrixStats::colMedians(res2)), lwd = 0.01) + geom_sf(data = pays, lwd = 0.2) + 
@@ -365,8 +369,8 @@ Map of Activity Centers
  head(ch[,5000:5012])
 # coda::effectiveSize(ch[,"mu1"])
 
-ids <- round(ch[,5:5004])
-zs <- ch[,5009:10008]
+ids <- round(ch[,3:5002])
+zs <- ch[,5008:10007]
 dim(ids)
 
 ACi <- rep(NA,ncol(ids))
@@ -396,8 +400,8 @@ mapAC
 Load results without postierior distribution 
 
 ```{r include=FALSE}
-load("~/Google Drive/GITHUB/Spatial-abundance-tursiops/SIM0trickres.rdata")
-denplot(samples[,c("EN","mu1","mu0","alpha0","p0")])
+load("Work/ResultatsCluster/SIM_sig0res2.rdata")
+denplot(samples[,c("EN","mu1","mu0","alpha0","p0","sigma.scr","sigma.ds")])
 SIPM_output <-  samples
 str(SIPM_output) # 6 chains 
 ```
@@ -444,21 +448,20 @@ Abundance predicted via the point process $\lambda$
 ```{r echo=FALSE}
 #head(summary(sim1ch))
 
-SIM <- coda::as.mcmc.list(SIMch)
+
 # dim(SIM[[1]])
 # keep only iterations when convergence is ok
-ch <- rbind(SIM[[1]],SIM[[2]])#,SIM[[3]])
-
-ch <- ch[sample(1:nrow(ch),10000),]
+ch <- rbind(samples[[1]],samples[[2]])#,SIM[[3]])
+dim(ch)
+#ch <- ch[sample(1:nrow(ch),10000),]
 
 res3 <- matrix(NA,nrow= nrow(ch),ncol = nrow(sea$bathy.sc))
 poscr_sim <- sigmads_sim <- matrix(NA,nrow= nrow(ch),ncol = length(datDS$seffDS))
-sigmascr_sim <- matrix(NA,nrow= nrow(ch),ncol = length(datSCR$seff[datSCR$seff>0]))
 # head(ch)
 
 
 mu0sim <- mu1sim <- rep(NA,nrow(ch))
-beta0sim <- beta1sim <- rep(NA,nrow(ch))
+sigmascr <- sigmads <- rep(NA,nrow(ch))
 p0sim <- p1sim <- rep(NA,nrow(ch))
 alpha0sim <- alpha1sim <- alpha2sim <- rep(NA,nrow(ch))
 
@@ -467,10 +470,8 @@ for(i in 1:nrow(res3)){
     mu0sim[i] <- ch[i,"mu0"]
     mu1sim[i] <- ch[i,"mu1"]
     
-    beta0sim[i] <- ch[i,"beta0"]
-    beta1sim[i] <- ch[i,"beta1"]
-    
-    sigmascr_sim[i,] <-  exp(beta0sim[i] + beta1sim[i]*datSCR$seff[datSCR$seff>0])
+   sigmascr[i] <- ch[i,"sigma.scr"]
+    sigmads[i] <- ch[i,"sigma.ds"]
     
     p0sim[i] <- ch[i,"p0"]
     p1sim[i] <- ch[i,"p1"]
@@ -505,10 +506,10 @@ Map of Activity Centers
 # try to plot ACs
 # 3 chains MCMC
 dim(ch)
-head(ch[,5000:5012])
+head(ch[,5000:5015])
 head(ch[,1:10])
 
-ids <- round(ch[,9:5008])
+ids <- round(ch[,7:5006])
 dim(ids)
 
 ACi <- rep(NA,ncol(ids))
@@ -684,7 +685,7 @@ ggsave(p, file = "Fig3.png", dpi = 300, path= getwd())
 Plot ACs
 
 ```{r}
-ptSCR <- st_centroid(sea) %>% 
+ptSCR <- sf::st_centroid(sea) %>% 
   mutate(AC = ACSCR) %>% 
   filter(AC > 0)
 
@@ -704,7 +705,7 @@ pACSCR <- ggplot()+
 pACSCR
 
 # SIM 
-ptIM <- st_centroid(sea) %>% 
+ptIM <- sf::st_centroid(sea) %>% 
   mutate(AC = ACIM) %>% 
   filter(AC > 0)
 

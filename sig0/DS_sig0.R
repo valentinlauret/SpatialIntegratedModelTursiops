@@ -15,7 +15,7 @@ library(sf)
 dataDS <- function(){
   
   #load DS datasets
-  load("DS2.Rdata")
+  load("DS/DS2.Rdata")
   load("sea.grid.rdata")
   
   g2 <- sea
@@ -146,7 +146,7 @@ constants <- list(nobs = datDS$nobs, B = datDS$B, nsites = datDS$nsites,midpt = 
 data <- list(dclass =datDS$dclass, gpsize = datDS$groupsize)
 
 
-inits <- list(alpha0=0, alpha1=0,alpha2= 0,mu0=0, mu1 = 0, sigma = runif(1,0,200), N = datDS$Nst)
+inits <- list(alpha0=0, alpha1=0,alpha2= 0,mu0=0, mu1 = 0, sigma = runif(1,0,1), N = datDS$Nst)
 
 # parralellize 
 # 
@@ -161,18 +161,28 @@ inits <- list(alpha0=0, alpha1=0,alpha2= 0,mu0=0, mu1 = 0, sigma = runif(1,0,200
   library(nimble)
 
 
+# nimbleMCMC
+out <- nimbleMCMC(code = DScode,
+           data = data,
+           constants = constants,
+           inits = inits,
+           monitors = c("EN","mu0", "mu1","sigma","alpha0","alpha1","alpha2"),
+           niter = 1000,
+           nburnin = 200,
+           nchains = 2)
 # Build model
 #tSIPM1 <- proc.time()
+
 Rmodel <- nimbleModel(DScode, constants, data, inits)
 Rmodel$initializeInfo()
-Rmodel$calculate() #  -75545.54
+Rmodel$calculate() #  -4792
 
 # Configure monitors
 conf <- configureMCMC(Rmodel)
 
 conf$printMonitors() # see wht parameters are monitored
 conf$resetMonitors()
-conf$addMonitors("Ntot","mu0", "mu1") # add monitors 
+conf$addMonitors("EN","mu0", "mu1","sigma","alpha0","alpha1","alpha2") # add monitors 
 
 # custom samplers OPTIONNAL
 conf$printSamplers(byType= TRUE)
@@ -189,7 +199,7 @@ Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Cmodel)
 
 # Run 
-t <- system.time(samples <- runMCMC(Cmcmc, niter = 100000, nburnin = 10000, nchains = 3, samplesAsCodaMCMC = TRUE, setSeed = seed))  ## DT: use runMCMC
+t <- system.time(samples <- runMCMC(Cmcmc, niter = 50000, nburnin = 5000, nchains = 3, samplesAsCodaMCMC = TRUE))  ## DT: use runMCMC
 
-save(samples, t, file = "DS_sig0res.rdata")
+save(samples, t, file = "DS_sig0res2.rdata")
 

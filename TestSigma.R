@@ -16,7 +16,7 @@ traploc <-  datSCR$traploc
 sites <-  datSCR$sites
 head(sites)
 
-sigma.scr <- 10^6
+sigma.scr <- 100000
 p.scr <- dist2.scr <- rep(NA,1000)
 
 for(i in 1:1000){
