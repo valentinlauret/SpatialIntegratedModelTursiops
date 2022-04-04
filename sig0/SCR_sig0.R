@@ -145,16 +145,16 @@ SCRcode <-  nimbleCode({
   # prior psi
   #psi ~ dunif(0,1)
   
-  
   log(mu[1:nsites]) <- mu0 + mu1 * habitat[1:nsites]  # abundance model via IPP 
  
   EN <- sum(mu[1:nsites]) # expected number of individual for the study area
   
-  psi <- EN/M
+  psi <-  EN/M
   
  
   # logit regression of pbar
-  logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seff[1:ntrap,1:nocc] 
+ logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seff[1:ntrap,1:nocc]
+ pbar_mask[1:ntrap, 1:nocc] <- pbar[1:ntrap, 1:nocc]*eff.ind[1:ntrap,1:nocc] 
   
   # cell prob
   probs[1:nsites] <- mu[1:nsites]/EN
@@ -178,7 +178,7 @@ SCRcode <-  nimbleCode({
     ## DT: likelihood using new dBernoulliVector4 distribution:
     y.scr[i, 1:nocc, 1:MAX] ~ dBernoulliVector4(
       MAX = MAX, ntrap = ntrap, nocc = nocc,
-      sigma = sig2, pbar = pbar[1:ntrap,1:nocc], 
+      sigma = sig2, pbar = pbar_mask[1:ntrap,1:nocc], 
       eff.ind = eff.ind[1:ntrap, 1:nocc], SX = SX[i], SY = SY[i],
       traploc = traploc[1:ntrap,1:2], indicator = z[i])
     
@@ -187,6 +187,7 @@ SCRcode <-  nimbleCode({
 })
 
 # ---- Nimble custom distribution ----
+# ---- v4 ----
 dBernoulliVector4 <- nimbleFunction(
   run = function(
     x = double(2), MAX = double(0), ntrap = double(0), nocc = double(0),
@@ -194,17 +195,20 @@ dBernoulliVector4 <- nimbleFunction(
     traploc = double(2), indicator = double(0), log = integer(0, default = 0)) {
     if(indicator == 0) { if(sum(x) == 0) return(0) else return(-Inf) }
     lp <- 0
-    xInd <- rep(1, nocc)
+    xInd <- rep(1, nocc) # 1:MAX
     for(s in 1:ntrap) {
       dist <- (SX-traploc[s,1])^2 + (SY-traploc[s,2])^2
       for(j in 1:nocc) {
-        p <- max(min(pbar[s,j]*exp(-dist/(sigma)),0.999),0.001)*eff.ind[s,j]
-        if(x[j,xInd[j]] == s) {
+        p <- pbar[s,j]*exp(-dist/(sigma))
+       # for(i in 1:MAX){
+        if(x[j,xInd[j]] == s) { # if(x[j,i] == s) {
           lp <- lp + log(p)
           if(xInd[j] < MAX) xInd[j] <- xInd[j] + 1
-        } else {
+        } 
+        else {
           lp <- lp + log(1-p)
         }
+     # }
       }
     }
     returnType(double())
@@ -228,40 +232,84 @@ registerDistributions(list(
     types = c('value = double(2)', 'sigma = double(0)', 'pbar = double(2)','eff.ind = double(2)', 'traploc = double(2)'),
     mixedSizes = TRUE   ## DT: prevents a warning about size/dimension mismatch
   )))
+
+# ---- v5 -----
+# Val mpodif to account for multiple sightings in same occasion 
+dBernoulliVector5 <- nimbleFunction(
+  run = function(
+    x = double(2), MAX = double(0), ntrap = double(0), nocc = double(0),
+    sigma = double(0), pbar = double(2), eff.ind = double(2),  SX = double(0), SY = double(0),
+    traploc = double(2), indicator = double(0), log = integer(0, default = 0)) {
+    if(indicator == 0) { if(sum(x) == 0) return(0) else return(-Inf) }
+    lp <- 0
+    for(s in 1:ntrap) {
+      dist <- (SX-traploc[s,1])^2 + (SY-traploc[s,2])^2
+      for(j in 1:nocc) {
+        p <- pbar[s,j]*exp(-dist/(sigma))
+         for(i in 1:MAX){
+          if(x[j,i] == s) {
+          lp <- lp + log(p)
+          } else { lp <- lp + log(1-p) }
+         }
+      }
+    }
+    returnType(double())
+    if(log) return(lp)
+    return(exp(lp))
+  })
+
+rBernoulliVector5 <- nimbleFunction(
+  run = function(
+    n = integer(), MAX = double(0), ntrap = double(0), nocc = double(0),
+    sigma = double(0), pbar = double(2), eff.ind = double(2), SX = double(0), SY = double(0),
+    traploc = double(2), indicator = double(0)) {
+    stop('should never call rBernoulliVector5')
+    returnType(double(2))
+    return(array(0, c(2, 2)))
+  })
+
+registerDistributions(list(
+  dBernoulliVector5 = list(
+    BUGSdist = 'dBernoulliVector5(MAX,ntrap,nocc,sigma,pbar,eff.ind,SX,SY,traploc,indicator)',
+    types = c('value = double(2)', 'sigma = double(0)', 'pbar = double(2)','eff.ind = double(2)', 'traploc = double(2)'),
+    mixedSizes = TRUE   ## DT: prevents a warning about size/dimension mismatch
+  )))
 # ---- Build data ----
 
 # constants
 constants <-  list(nsites = datSCR$nsites, nocc = datSCR$nocc, M = datSCR$M, ntrap = datSCR$ntrap,
-                   traploc = datSCR$traploc, habitat = datSCR$habitat,
+                   traploc = datSCR$traploc/100000, habitat = datSCR$habitat,
                    seff = datSCR$seff, eff.ind = datSCR$eff.ind,
                    MAX = datSCR$MAX)  
 
 # data
-data <- list(sites= datSCR$sites, y.scr = datSCR$y.scr, zeros = rep(0,M))
+data <- list(sites= datSCR$sites/100000, y.scr = datSCR$y.scr, zeros = rep(0,M))
 
 # Inits
-inits <-  list(z=datSCR$z,id = datSCR$id, mu0=0,mu1=0,sigma = 10^5, p0 = 0, p1= 0)
+inits <-  list(z=datSCR$z,id = datSCR$id, mu0=0,mu1=0,sigma = 10^3, p0 = 0, p1= 0)
 
 # NIMBLE RUN ----
 # Nimble mcmc 
 # nimbleMCMC
-out <- nimbleMCMC(code = SCRcode,
+t <- system.time(out <- nimbleMCMC(code = SCRcode,
                   data = data,
                   constants = constants,
                   inits = inits,
                   monitors = c("EN","mu0", "mu1","sigma","p0","p1"),
                   niter = 100,
                   nburnin = 20,
-                  nchains = 1)
+                  nchains = 1))
+traplot(out)
+denplot(out)
   # Build model
 Rmodel <- nimbleModel(SCRcode, constants, data, inits)
- Rmodel$calculate() # - 262110
+ Rmodel$calculate() # - 127631
 # configure model
 conf <- configureMCMC(Rmodel)
     
   conf$printMonitors()
   conf$resetMonitors()
-  conf$addMonitors(c('N','EN','mu0','mu1',"sigma", "p0","p1", "id", "z"))
+  conf$addMonitors(c('EN','mu0','mu1',"sigma", "p0","p1", "id"))
   
   # custom samplers OPTIONNAL
   conf$printSamplers(byType= TRUE)
@@ -289,76 +337,17 @@ t <- system.time(samples <- runMCMC(Cmcmc, niter = 50000, nburnin = 5000, nchain
 # ART : 6 min
 t <- system.time(samples <- runMCMC(Cmcmc, niter = 1000, nburnin = 100, nchains = 1, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
 
-niter_ad <- 3000
+Cmcmc$run(100)
+niter_ad <- 50000
 Cmcmc$run(niter_ad, reset = FALSE)
-more_samples <- as.matrix(Cmcmc$mvSamples)
-samplesSummary(more_samples)
-summary(more_samples[c(1901:3900),c("EN","mu0","mu1","sigma")])
+scrsamp2 <- as.matrix(Cmcmc$mvSamples)
+samplesSummary(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
+mcmcplots::traplot(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
+mcmcplots::denplot(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
+effectiveSize(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
 
-traplot(samples[,c("EN","mu0","mu1","sigma.ds","sigma.scr")])
-save(samples,t, file ="SCR_sig0res2.Rdata")
+denplot(samples[1000:4000,c("EN","mu0","mu1","sigma")])
+save(scrsamp2, file ="SCR_010422.Rdata")
 
-# mcmcplots::denplot(samples[,c('mu0',"mu1")])
-# 
-# quantile(ch[,"mu0"])
-# quantile(ch[,"mu1"])
-# # plot map density 
-# 
-# head(ch)
-# dim(ch)
-# 
-# ch1 <- samples
-# 
-# SCRch <- list(as.mcmc(ch1))
-# 
-# SCR <- coda::as.mcmc.list(SCRch)
-# 
-#               
-# ch <- ch[sample(1:nrow(ch),1000),]
-# sigmascr <- matrix(NA,nrow= nrow(ch),ncol = length(datSCR$seff[datSCR$seff>0]))
-# res2 <- matrix(NA,nrow= nrow(ch),ncol = nrow(sea$bathy.sc))
-# p0scr_scr <- matrix(NA,nrow= nrow(ch),ncol = length(datSCR$seff[datSCR$seff>0]))
-# 
-# mu0scr <- mu1scr <- rep(NA,nrow(ch))
-# beta0scr <- beta1scr <- rep(NA,nrow(ch))
-# p0scr <- p1scr <- rep(NA,nrow(ch))
-# 
-# for(i in 1:nrow(res2)){
-#   res2[i,] <- exp(ch[i,"mu0"]+ ch[i,"mu1"]*sea$bathy.sc)
-#   mu0scr[i] <- ch[i,"mu0"]
-#   mu1scr[i] <- ch[i,"mu1"]
-#   
-#   beta0scr[i] <- ch[i,"beta0"]
-#   beta1scr[i] <- ch[i,"beta1"]
-#   sigmascr[i,] <- exp(beta0scr[i] + beta1scr[i]*datSCR$seff[datSCR$seff>0])
-#   
-#   p0scr[i] <- ch[i,"p0"]
-#   p1scr[i] <- ch[i,"p1"]
-#   
-#   p0scr_scr[i,] <-  exp(p0scr[i] + p1scr[i]*datSCR$seff[datSCR$seff>0])
-# }
-# 
-# resSCR <- apply(res2,1,sum)
-# summary(resSCR)
-# 
-# map2 <- ggplot()+ geom_sf(data = sea, aes(fill = matrixStats::colMedians(res2)), lwd = 0.01) + geom_sf(data = pays, lwd = 0.2) + 
-#   scale_fill_viridis_c(limits = c(0,max(matrixStats::colMedians(res2)))) +
-#   labs(title = "Spatial Capture-Recapture",fill = "Density")+ theme_cowplot(rel_large = 1, rel_tiny = 0.7, font_family = "Montserrat")
-# 
-# map2
-# 
-# # try to plot ACs
-# # 1 chain MCMC
-# head(samples[,5000:5008])
-# 
-# ids <- round(samples[,5:5004])
-# tabid <- table(ids)
-# 
-# 
-# mapAC <- ggplot() + 
-#   geom_sf(data = sea, aes(fill= tabid),lwd = 0) + 
-#   scale_fill_viridis_c() +
-#   geom_sf(data= pays)
-# 
-# mapAC
-
+scr_select <- more_samples[c(1000:10000,40000:50000),]
+samplesSummary(scr_select[,c("EN","mu0","mu1","sigma", "p0","p1")])

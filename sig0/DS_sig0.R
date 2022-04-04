@@ -124,7 +124,7 @@ DScode <-  nimbleCode({
      logit(p0[s])<- alpha0 + alpha1*seff[s]  + alpha2*sea.state[s] # Linear model detection
    }
  ##  # Derived parameters
-   #Ntot <- sum(N[1:nsites])
+   Ntot <- sum(N[1:nsites])
    EN <-  sum(lambda[1:nsites])     # expected number of individual for the study area
   # area <- nsites*1*2*B # Unit length == 1, half-width = B
   # D <- Ntotal/area
@@ -198,8 +198,16 @@ Rmcmc <- buildMCMC(conf)
 Cmodel <- compileNimble(Rmodel)
 Cmcmc <- compileNimble(Rmcmc, project = Cmodel)
 
+Cmcmc$run(100000)
+Cmcmc$run(100000, reset = FALSE)
+dsamp <- as.matrix(Cmcmc$mvSamples)
+denplot(dsamp)
+effectiveSize(dsamp)
+summary(dsamp)
+quantile(dsamp[,"EN"], c(0.1,0.5,0.9))
 # Run 
 t <- system.time(samples <- runMCMC(Cmcmc, niter = 50000, nburnin = 5000, nchains = 3, samplesAsCodaMCMC = TRUE))  ## DT: use runMCMC
 
-save(samples, t, file = "DS_sig0res2.rdata")
+samples <- dsamp
+save(samples, t, file = "DS_giveup.rdata")
 

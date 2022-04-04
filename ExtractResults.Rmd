@@ -41,7 +41,9 @@ Load results without plotting the posterior distribution.
 load("Work/ResultatsCluster/DS_sig0res.Rdata")
 # load("~/Google Drive/GITHUB/Spatial-abundance-tursiops/DS/DSfull.Rdata")
 denplot(samples[,c("sigma","EN")])
-outputDS <- summary(samples)
+summary(samples)
+effectiveSize(samples[,c("sigma","EN")])
+outputDS
 ```
 
 
@@ -120,14 +122,14 @@ dataDS <- function(){
 }
 
 datDS <- dataDS()
-dim(samples$chain1)
+#dim(samples$chain1)
 ch <- rbind(samples$chain1[30000:nrow(samples$chain1),],samples$chain2[30000:nrow(samples$chain1),],samples$chain3[30000:nrow(samples$chain1),])
 #ch <- samples
-
+dim(ch)
 ch <- ch[sample(1:nrow(ch),10000),]
 res1 <- matrix(NA,nrow= nrow(ch),ncol = nrow(sea$bathy.sc))
 
-sigmads <- matrix(NA,nrow= nrow(ch),ncol = length(datDS$seffDS))
+p0dss <- matrix(NA,nrow= nrow(ch),ncol = length(datDS$seffDS))
 head(ch)
   mu0ds <-  mu1ds <- rep(NA, nrow(ch))
   alpha0ds <-  alpha1ds <- alpha2ds <-  rep(NA, nrow(ch))
@@ -139,20 +141,27 @@ for(i in 1:nrow(res1)){
     alpha0ds[i] <- ch[i,"alpha0"]
     alpha1ds[i] <- ch[i,"alpha1"]
     alpha2ds[i] <- ch[i,"alpha2"]
-    sigmads[i,] <- exp(alpha0ds[i] + alpha1ds[i]*datDS$seffDS +  alpha2ds[i]*datDS$sea.stateDS)
+    p0dss[i,] <- exp(alpha0ds[i] + alpha1ds[i]*datDS$seffDS +  alpha2ds[i]*datDS$sea.stateDS)
 }
 
+  sigmads <- ch[,"sigma"]
 resDS <- apply(res1,1,sum)
-summary(resDS)
+quantile(resDS, c(0.1,0.5,0.9))
+quantile(sigmads, c(0.1,0.5,0.9))
+quantile(alpha2ds, c(0.1,0.5,0.9))
+
 ```
 
 # Spatial Capture Recapture
+
+PERCENTAGE OF WELL MARKED INDIVIDUAL 76%
 
 Load results without posterior distribution
 
 ```{r include=FALSE}
 # load("SCR/SCRparafull.rdata")
-load("Work/ResultatsCluster/SCR_sig0res2.rdata")
+#load("Work/ResultatsCluster/SCR_sig0res2.rdata")
+load("Work/ResultatsCluster/SCRmerge.rdata")
 
 # SCR
 dataSCR <- function(M = double(0)){
@@ -265,41 +274,15 @@ M <- 5000
 datSCR <- dataSCR(M = M)
 
 #str(samples2) # Warning : it is the result of a parallelization of 3 chains that contain each 3 chians 
-ch <- samples
+ch <- SCRsamp
 ```
 
 ```{r eval=FALSE, include=FALSE}
-traplot(samples[,c("EN","mu1","p0","p1","sigma")])
-denplot(samples[,c("EN","mu1","p0","p1","sigma")])
+traplot(ch[,c("EN","mu1","mu0","p0","p1","sigma")])
+denplot(ch[,c("EN","mu1","mu0","p0","p1","sigma")])
+effectiveSize(ch[,c("EN","mu1","mu0","p0","p1","sigma")])
+summary(ch[,c("EN","mu1","mu0","p0","p1","sigma")])
 
- ch1 <- samples[1]
-# 
-# ch2 <- SCRp10[2]
-# 
-# ch3 <- SCRp10[3]
-# 
-# ch11 <- ch1[[1]][1]
-# ch12 <- ch1[[1]][2]
-# ch13 <- ch1[[1]][3]
-# 
-# ch21 <- ch2[[1]][1]
-# ch22 <- ch2[[1]][2]
-# ch23 <- ch2[[1]][3]
-# 
-# ch31 <- ch2[[1]][1]
-# ch32 <- ch2[[1]][2]
-# ch33 <- ch2[[1]][3]
-# 
-# denplot(c(ch11,ch12,ch21,ch22,ch31,ch32, ch13, ch23, ch33))
-# traplot(c(ch11,ch12,ch21,ch22,ch31,ch32, ch13, ch23, ch33))
-
-# SCRch <- list(as.mcmc(ch1),as.mcmc(ch2),as.mcmc(ch3))
-```
-
-
-```{r eval=FALSE, include=FALSE}
-# outputSCR <- summary(coda::as.mcmc.list(SCRch))
-# outputSCR
 ```
 
 Abundance predicted via the point process $lambda$ 
@@ -312,16 +295,15 @@ load("sea.grid.rdata")
 # 
 # # keep only last iteration when convergence is ok
 # ch <- rbind(SCR[[1]],SCR[[2]],SCR[[3]])
-# ch <- samples2
+#ch <- samples
 # head(ch)
 dim(ch)
 
-ch <- data.frame(bind_rows(as_tibble(samples$chain1), as_tibble(samples$chain2)))
+#ch <- data.frame(bind_rows(as_tibble(samples$chain1), as_tibble(samples$chain2)))
 
 #ch <- ch[10000:nrow(ch),]
 res2 <- matrix(NA,nrow= nrow(ch),ncol = nrow(sea$bathy.sc))
 p0scr_scr <- matrix(NA,nrow= nrow(ch),ncol = length(datSCR$seff[datSCR$seff>0]))
-
 mu0scr <- mu1scr <- rep(NA,nrow(ch))
 sigmascr <- rep(NA,nrow(ch))
 p0scr <- p1scr <- rep(NA,nrow(ch))
@@ -333,16 +315,21 @@ for(i in 1:nrow(res2)){
     
     #beta0scr[i] <- ch[i,"beta0"]
     #beta1scr[i] <- ch[i,"beta1"]
-    #sigmascr[i,] <- exp(beta0scr[i] + beta1scr[i]*datSCR$seff[datSCR$seff>0])
+    sigmascr[i] <- ch[i,"sigma"]
     
     p0scr[i] <- ch[i,"p0"]
     p1scr[i] <- ch[i,"p1"]
     
-    p0scr_scr[i,] <-  exp(p0scr[i] + p1scr[i]*datSCR$seff[datSCR$seff>0])
+    p0scr_scr[i,] <-  plogis(p0scr[i] + p1scr[i]*datSCR$seff[datSCR$seff>0])
 }
 
-resSCR <- apply(res2,1,sum)
+denplot(as.vector(p0scr_scr))
+resSCR <- apply(res2,1,sum)*1.24 # applying coorectif well marked
 summary(resSCR)
+denplot(resSCR)
+
+ ggplot() + geom_smooth(aes(x = datSCR$seff[datSCR$seff>0],
+                            y = plogis(mean(p1scr) + mean(p1scr)*datSCR$seff[datSCR$seff>0])))
 
 ```
 
@@ -366,23 +353,33 @@ Map of Activity Centers
 # 3 chains MCMC
 # dim(ch)
 # str(samples)
- head(ch[,5000:5012])
+ head(ch[,5001:5007])
+ head(ch[,1:10])
 # coda::effectiveSize(ch[,"mu1"])
 
 ids <- round(ch[,3:5002])
-zs <- ch[,5008:10007]
-dim(ids)
+#zs <- ch[,5007:10006]
+dim(ch)
+
+#ACi <- rep(NA,ncol(ids))
+#ACs <- rep(0,nrow(sea))
+#for(i in 1:ncol(ids)){
+#  ta <- table(ids[,i])
+#  tz <- table(zs[i])
+#  zz <- as.numeric(names(tz[which(tz == max(tz) )]))[1]
+#  if(zz == 1){
+#  ACi[i] <- as.numeric(names(ta[which(ta == max(ta) )]))[1]
+#  ACs[ACi[i]] <- ACs[ACi[i]] + 1 } # end if
+#}
 
 ACi <- rep(NA,ncol(ids))
 ACs <- rep(0,nrow(sea))
 for(i in 1:ncol(ids)){
   ta <- table(ids[,i])
-  tz <- table(zs[i])
-  zz <- as.numeric(names(tz[which(tz == max(tz) )]))[1]
-  if(zz == 1){
   ACi[i] <- as.numeric(names(ta[which(ta == max(ta) )]))[1]
-  ACs[ACi[i]] <- ACs[ACi[i]] + 1 } # end if
+  ACs[ACi[i]] <- ACs[ACi[i]] + 1 
 }
+
 #length(ACs)
 ACSCR <- ACs
 mapAC <- ggplot() +  
@@ -400,45 +397,10 @@ mapAC
 Load results without postierior distribution 
 
 ```{r include=FALSE}
-load("Work/ResultatsCluster/SIM_sig0res2.rdata")
-denplot(samples[,c("EN","mu1","mu0","alpha0","p0","sigma.scr","sigma.ds")])
-SIPM_output <-  samples
+load("Work/ResultatsCluster/IM_merge.rdata")
+denplot(imsamp[,c("EN","mu1","mu0","alpha0","p1","sigma.scr","sigma.ds")])
+ch <-  imsamp
 str(SIPM_output) # 6 chains 
-```
-
-
-```{r echo=FALSE}
-ch1 <-SIPM_output[1]         
-
-ch2 <- SIPM_output[2]
-
-ch3 <- SIPM_output[3]
-
-ch11 <- ch1[[1]][1]
-ch12 <- ch1[[1]][2]
-#ch13 <- ch1[[1]][3]
-
-ch21 <- ch2[[1]][1]
-ch22 <- ch2[[1]][2]
-#ch23 <- ch2[[1]][3]
-
-ch31 <- ch2[[1]][1]
-ch32 <- ch2[[1]][2]
-#ch33 <- ch2[[1]][3]
-
-#mcmcplots::denplot(c(ch11,ch12,ch21,ch22,ch31,ch32))
-#traplot(c(ch11,ch12,ch21,ch22,ch31,ch32))
-#mcmcplots::denplot(ch1[,c("beta0","beta1")])
-#which(ch1[[1]][,"mu1"]<0)
-#
-#coda::effectiveSize(ch1[,c("mu0","mu1")])
-#
-#
-#SIMch <- list(as.mcmc(ch11),as.mcmc(ch12),as.mcmc(ch21),as.mcmc(ch22),as.mcmc(ch31),as.mcmc(ch32))
-
-
-SIMch <- list(as.mcmc(ch1),as.mcmc(ch2))#,as.mcmc(ch3))
-
 ```
 
 
@@ -451,7 +413,7 @@ Abundance predicted via the point process $\lambda$
 
 # dim(SIM[[1]])
 # keep only iterations when convergence is ok
-ch <- rbind(samples[[1]],samples[[2]])#,SIM[[3]])
+#ch <- rbind(samples[[1]],samples[[2]])#,SIM[[3]])
 dim(ch)
 #ch <- ch[sample(1:nrow(ch),10000),]
 
@@ -461,7 +423,8 @@ poscr_sim <- sigmads_sim <- matrix(NA,nrow= nrow(ch),ncol = length(datDS$seffDS)
 
 
 mu0sim <- mu1sim <- rep(NA,nrow(ch))
-sigmascr <- sigmads <- rep(NA,nrow(ch))
+sigmascr_sim <- ch[,"sigma.scr"]
+  sigmads_sim <- ch[,"sigma.ds"]
 p0sim <- p1sim <- rep(NA,nrow(ch))
 alpha0sim <- alpha1sim <- alpha2sim <- rep(NA,nrow(ch))
 
@@ -470,8 +433,8 @@ for(i in 1:nrow(res3)){
     mu0sim[i] <- ch[i,"mu0"]
     mu1sim[i] <- ch[i,"mu1"]
     
-   sigmascr[i] <- ch[i,"sigma.scr"]
-    sigmads[i] <- ch[i,"sigma.ds"]
+  # sigmascr_sim[i] <- ch[i,"sigma.scr"]
+  #  sigmads_sim[i] <- ch[i,"sigma.ds"]
     
     p0sim[i] <- ch[i,"p0"]
     p1sim[i] <- ch[i,"p1"]
@@ -481,13 +444,14 @@ for(i in 1:nrow(res3)){
     alpha0sim[i] <- ch[i,"alpha0"]
     alpha1sim[i] <- ch[i,"alpha1"]
     alpha2sim[i] <- ch[i,"alpha2"]
-    
-    sigmads_sim[i,] <-  exp(alpha0sim[i] + alpha1sim[i]*datDS$seffDS[datDS$seffDS>0] + alpha2sim[i]*datDS$sea.stateDS[datDS$seffDS>0])
+
 }
 
 
-resSIPM <- apply(res3,1,sum)
+resSIPM <- apply(res3,1,sum)*1.24
 summary(resSIPM)
+quantile(resSIPM, c(0.1,0.5,0.9))
+quantile(sigmascr_sim)
 ```
 
 Map of the density of bottlenose dolphins.
@@ -519,6 +483,22 @@ for(i in 1:ncol(ids)){
   ACi[i] <- as.numeric(names(ta[which(ta == max(ta) )]))[1]
   ACs[ACi[i]] <- ACs[ACi[i]] + 1 
 }
+
+#ids <- round(ch[,2:5001])
+#zs <- ch[,5007:10006]
+#dim(ids)
+#
+#ACi <- rep(NA,ncol(ids))
+#ACs <- rep(0,nrow(sea))
+#for(i in 1:ncol(ids)){
+#  ta <- table(ids[,i])
+#  tz <- table(zs[i])
+#  zz <- as.numeric(names(tz[which(tz == max(tz) )]))[1]
+#  if(zz == 1){
+#  ACi[i] <- as.numeric(names(ta[which(ta == max(ta) )]))[1]
+#  ACs[ACi[i]] <- ACs[ACi[i]] + 1 } # end if
+#}
+
 length(ACs)
 ACIM <- ACs
 mapAC <- ggplot() + 
@@ -612,6 +592,13 @@ tab
 
 ```
 
+```{r}
+quantile(sigmascr, c(0.1,0.5,0.9))
+quantile(sigmascr_sim, c(0.1,0.5,0.9))
+quantile(sigmads_sim, c(0.1,0.5,0.9))
+quantile(sigmads, c(0.1,0.5,0.9))
+```
+
 
 ## Maps
 
@@ -622,27 +609,28 @@ library(cowplot)
 library(ggtext)
 library(patchwork)
 
+quantile(mu1ds, c(0.1,0.5,0.9))
 map1 <- ggplot()+ geom_sf(data = sea, aes(fill = matrixStats::colMedians(res1)), lwd = 0.01) + geom_sf(data = pays, lwd = 0.2)+  
   scale_fill_gradient( limits = c(0,max(matrixStats::colMedians(res1))))+ 
-   labs(title = "A. Density estimates",fill = "Density",subtitle = "*1. Distance Sampling*",
-       caption = "Est. abundance: 8478 (80% CI - 7635; 9329)")+
+   labs(title = " Density estimates",fill = "Density",subtitle = "*1. Distance Sampling*",
+       caption = "Depth effect: 0.36 (80% CI - 0.30; 0.42)")+
   theme_cowplot() +
    theme(legend.position = "right", plot.title.position = 'panel', plot.subtitle = element_markdown()) 
 
 
-
+quantile(mu1scr, c(0.1,0.5,0.9))
 map2 <- ggplot()+ geom_sf(data = sea, aes(fill = matrixStats::colMedians(res2)), lwd = 0.01) + geom_sf(data = pays, lwd = 0.2) + 
   scale_fill_gradient(limits = c(0,max(matrixStats::colMedians(res2)))) +
    labs(fill = "Density",subtitle = "*2. Spatial Capture Recapture*",
-       caption = "Est. abundance: 1487 (80% CI - 1426; 1550)")+ 
+       caption = "Depth effect: 0.28 (80% CI - -0.47; 1.22)")+ 
   theme_cowplot() + 
   theme(legend.position = "right", plot.subtitle = element_markdown()) 
 
-
+quantile(resSIPM, c(0.05,0.5,0.95))
 map3 <- ggplot()+ geom_sf(data = sea, aes(fill = matrixStats::colMedians(res3)), lwd = 0.01) + geom_sf(data = pays, lwd = 0.2)+ 
   scale_fill_gradient(limits = c(0,max(matrixStats::colMedians(res3))))+ 
   labs(fill = "Density",subtitle = "*3. Integrated model*",
-       caption = "Est. abundance: 1824 (80% CI - 1761; 1888)")+ 
+       caption = "Depth effect: 0.44 (80% CI - 0.38; 0.51)")+ 
   theme_cowplot() +
   theme(legend.position = "right", plot.subtitle = element_markdown()) 
 
@@ -657,7 +645,7 @@ diffDSIM <- ggplot()+ geom_sf(data = sea,
                               aes(fill = DSmSIM), lwd = 0.01) +
   geom_sf(data = pays, lwd = 0.2)+ 
   scale_fill_viridis_c(limits = c(min(DSmSIM,SCRmSIM), max(DSmSIM,SCRmSIM)))+ 
-  labs(fill = "Density differences") + labs(title = "B. Differences between \n models", subtitle = "*1. Integrated Model - DS*")+ theme_cowplot() + theme(legend.position = "bottom", plot.title.position = "panel", plot.subtitle = element_markdown()) + 
+  labs(fill = "Density differences") + labs(title = "Differences between models", subtitle = "*1. Integrated Model - DS*")+ theme_cowplot() + theme(legend.position = "bottom", plot.title.position = "panel", plot.subtitle = element_markdown()) + 
   guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5, barwidth = unit(10, 'lines'), barheight = unit(.5, 'lines')))
 #diffDSIM
 
@@ -677,9 +665,13 @@ diffSCRIM <- ggplot()+ geom_sf(data = sea, aes(fill = SCRmSIM), lwd = 0.01) +
 #   guides(fill = guide_colorbar(title.position = 'top', title.hjust = .5, barwidth = unit(10, # 'lines'), barheight = unit(.5, 'lines')))
 #  
 
-p <- (map1 / map2 / map3) | (diffDSIM   / diffSCRIM)
+p <- (map1 / map2 / map3)
+psupp <- (diffDSIM   / diffSCRIM)
 p
-ggsave(p, file = "Fig3.png", dpi = 300, path= getwd())
+psupp
+ggsave(p, file = "Fig3_v2.png", dpi = 300, path= getwd())
+ggsave(psupp, file = "Fig3_annexe.png", dpi = 300, path= getwd())
+
 ```
 
 Plot ACs
@@ -687,7 +679,7 @@ Plot ACs
 ```{r}
 ptSCR <- sf::st_centroid(sea) %>% 
   mutate(AC = ACSCR) %>% 
-  filter(AC > 0)
+  filter(AC > 1)
 
 
 pACSCR <- ggplot()+ 
@@ -695,10 +687,10 @@ pACSCR <- ggplot()+
   geom_sf(data = pays, lwd = 0.1, alpha = 0.5 )+
   scale_size(limits = c(1,max(ACSCR, ACIM))) +
   scale_color_viridis_c( option = "D",direction = -1) +
-  labs(color = "Acitivity centers") + 
+  labs(color = "Acivity centers") + 
   labs(subtitle = "*1. Spatial Capture Recapture*",
        size = "Number of acitivity centers",
-       caption = "Est. abundance: 1487 (80% CI - 1426; 1550)")+
+       caption = "Est. abundance: 1834 (80% CI - 1745; 1926)")+
   theme_cowplot() +
   guides(colour = "none")+
   theme(legend.position = "top",plot.title.position = "plot", plot.subtitle = element_markdown())
@@ -707,23 +699,23 @@ pACSCR
 # SIM 
 ptIM <- sf::st_centroid(sea) %>% 
   mutate(AC = ACIM) %>% 
-  filter(AC > 0)
+  filter(AC > 2)
 
 pACIM <- ggplot()+ 
   geom_sf(data = ptIM, aes(size = AC, color = AC)) +
   geom_sf(data = pays, lwd = 0.1, alpha = 0.5 )+
  scale_size(limits = c(1,max(ACSCR, ACIM))) +
   scale_color_viridis_c( option = "D",direction = -1) +
-  labs(color = "Acitivity centers") + 
+  labs(color = "Activity centers") + 
   labs(subtitle = "*2. Integrated Model*",
-       caption = "Est. abundance: 1824 (80% CI - 1761; 1888)")+
+       caption = "Est. abundance: 2115 (80% CI - 2020; 2231)")+
   theme_cowplot() +
   theme(legend.position = "none", plot.subtitle = element_markdown())
 
 pACIM
 
 pAC <- (pACSCR + pACIM)
-ggsave(pAC, file = "FigAC.png", dpi = 300, path= getwd())
+ggsave(pAC, file = "FigAC2.png", dpi = 300, path= getwd(), scale = 1.5)
 
 ```
 

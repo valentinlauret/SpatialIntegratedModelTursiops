@@ -12,11 +12,11 @@ ggplot() +
   geom_line(aes(x = datDS$midpt, y = p.ds))
 
 # SCR
-traploc <-  datSCR$traploc
-sites <-  datSCR$sites
+traploc <-  datSCR$traploc/100000
+sites <-  datSCR$sites/100000
 head(sites)
 
-sigma.scr <- 100000
+sigma.scr <- 10
 p.scr <- dist2.scr <- rep(NA,1000)
 
 for(i in 1:1000){
@@ -34,6 +34,10 @@ p.scr[i] <- exp(-dist2.scr[i]/(2*sigma.scr^2))
 }
 
 ggplot() + 
-  geom_line(aes(x = sqrt(dist2.scr)/1000, y = p.scr))
+  geom_line(aes(x = sqrt(dist2.scr), y = p.scr))
 
 denplot(sqrt(dist.scr)/1000)
+
+# predicted sigma values based on logit regression
+
+exp(0.23 + 0.90 * mean(datSCR$seff))

@@ -192,10 +192,10 @@ SIMcode <-  nimbleCode({
   mu0 ~ dnorm(0,1) # Intercept of mu-density regression
   mu1 ~ dnorm(0,1) # slope of unique covariate for now
   # priors for the sigma SCR regression
-  sigma.scr ~ dunif(10^2,10^5) 
+  sigma.scr ~ dunif(1,1000) 
   sig2 <- 2*sigma.scr*sigma.scr
   # priors for the sigma DS regression
-  sigma.ds ~ dunif(0,5) 
+  sigma.ds ~ dunif(0,10) 
   # priors for the pbar SCR regression
   p0 ~ dnorm(0,1) # Intercept
   p1 ~ dnorm(0,1) # slope
@@ -215,7 +215,8 @@ SIMcode <-  nimbleCode({
   # SCR Observation model
  
   # logit regression of pbar
-  logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seffSCR[1:ntrap,1:nocc] 
+ logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seffSCR[1:ntrap,1:nocc]
+ pbar_mask[1:ntrap, 1:nocc] <- pbar[1:ntrap,1:nocc]*eff.ind[1:ntrap,1:nocc]
   
   # data augmentation
   for( i in 1:M){ #
@@ -236,7 +237,7 @@ SIMcode <-  nimbleCode({
     ## DT: likelihood using new dBernoulliVector4 distribution:
     y.scr[i, 1:nocc, 1:MAX] ~ dBernoulliVector4(
       MAX = MAX, ntrap = ntrap, nocc = nocc,
-      sigma = sig2, pbar = pbar[1:ntrap,1:nocc],
+      sigma = sig2, pbar = pbar_mask[1:ntrap,1:nocc],
       eff.ind = eff.ind[1:ntrap, 1:nocc], SX = SX[i], SY = SY[i],
       traploc = traploc[1:ntrap,1:2], indicator = z[i])
   }# M
@@ -290,7 +291,7 @@ dBernoulliVector4 <- nimbleFunction(
     for(s in 1:ntrap) {
       dist <- (SX-traploc[s,1])^2 + (SY-traploc[s,2])^2
       for(j in 1:nocc) {
-        p <-  max(min(pbar[s,j]*exp(-dist/(sigma)),0.999),0.001)*eff.ind[s,j]
+        p <-  pbar[s,j]*exp(-dist/(sigma))
         if(x[j,xInd[j]] == s) {
           lp <- lp + log(p)
           if(xInd[j] < MAX) xInd[j] <- xInd[j] + 1
@@ -335,52 +336,61 @@ constants <- list(nobs = datDS$nobs, B = datDS$B, nsitesDS = datDS$nsitesDS, mid
                   seffDS = datDS$seffDS, sea.stateDS = datDS$sea.stateDS,
                   habitat = datSCR$habitat, ## SCR
                   nsites = datSCR$nsites, nocc = datSCR$nocc, M = datSCR$M, ntrap = datSCR$ntrap,
-                  traploc = datSCR$traploc, seffSCR = datSCR$seff, eff.ind = datSCR$eff.ind, 
+                  traploc = datSCR$traploc/100000, seffSCR = datSCR$seff, eff.ind = datSCR$eff.ind, 
                   MAX = datSCR$MAX)
 
-data <- list(sites= datSCR$sites,dclass= datDS$dclass,  gpsize = datDS$groupsize, y.scr = datSCR$y.scr,
+data <- list(sites= datSCR$sites/100000,dclass= datDS$dclass,  gpsize = datDS$groupsize, y.scr = datSCR$y.scr,
              zeros = rep(0,M))
 
 
 inits <- list(alpha0=0, alpha1=0,alpha2= 0,mu0=0,mu1=0,p0=0,p1=0,
-              sigma.ds = runif(1,0,100), sigma.scr = runif(1,10^2,10^5),
+              sigma.ds = runif(1,0,10), sigma.scr = runif(1,1,1000),
               id = datSCR$id, z =datSCR$z , N =datDS$Nst)
   
 # Build model 
 
-  Rmodel <- nimbleModel(SIMcode, constants, data, inits)
- Rmodel$calculate() #-112035
+  Imodel <- nimbleModel(SIMcode, constants, data, inits)
+  Imodel$calculate() #-112035
   # Configure monitors
-  conf <- configureMCMC(Rmodel)
+  Iconf <- configureMCMC(Imodel)
   
-  conf$printMonitors() # see wht parameters are monitored
-  conf$resetMonitors()
-  conf$addMonitors('EN','NtotSCR',"NtotDS","mu0","mu1",
+  Iconf$printMonitors() # see wht parameters are monitored
+  Iconf$resetMonitors()
+  Iconf$addMonitors('EN',"mu0","mu1",
                    "p0", "p1","sigma.scr", "sigma.ds",
-                   "alpha0","alpha1","alpha2","id", "z") # add monitors 
+                   "alpha0","alpha1","alpha2","id") # add monitors 
    
   
   # Custom samplers OPTIONNAL
   # add Random Walk Block Samples for correlated parameters on sigma log-linear regression, and the IPP
-  conf$printSamplers(byType= TRUE)
+  Iconf$printSamplers(byType= TRUE)
   
-  conf$removeSamplers(target = c("mu0","mu1","alpha0","alpha1","alpha2",
+  Iconf$removeSamplers(target = c("mu0","mu1","alpha0","alpha1","alpha2",
                                  "p0","p1"))
 
-  conf$addSampler(target = c("mu0","mu1"), type ="RW_block")
-  conf$addSampler(target = c("p0","p1"), type ="RW_block")
-  conf$addSampler(target = c("alpha0","alpha1","alpha2"), type ="RW_block")
-  conf$printSamplers(byType= TRUE)
+  Iconf$addSampler(target = c("mu0","mu1"), type ="RW_block")
+  Iconf$addSampler(target = c("p0","p1"), type ="RW_block")
+  Iconf$addSampler(target = c("alpha0","alpha1","alpha2"), type ="RW_block")
+  Iconf$printSamplers(byType= TRUE)
   
-  conf$removeSamplers('id')
-  conf$addSampler('id', type = 'RW', scalarComponents = TRUE,
+  Iconf$removeSamplers('id')
+  Iconf$addSampler('id', type = 'RW', scalarComponents = TRUE,
                  control = list(adaptive = FALSE, reflective = TRUE, scale = datSCR$nsites/3))
   
   
   # Build and compile MCMC
-  Rmcmc <- buildMCMC(conf)
-  Cmodel <- compileNimble(Rmodel)
-  Cmcmc <- compileNimble(Rmcmc, project = Cmodel)
+  IRmcmc <- buildMCMC(Iconf)
+  ICmodel <- compileNimble(Imodel)
+  ICmcmc <- compileNimble(IRmcmc, project = ICmodel)
+  
+  ICmcmc$run(500)
+  niter <- 20000
+  ICmcmc$run(niter, reset = FALSE)
+  imsamp <- as.matrix(ICmcmc$mvSamples)
+  samplesSummary(imsamp[,c("EN","mu0","mu1","sigma.scr","sigma.ds", "p0","p1")])
+  mcmcplots::traplot(imsamp[,c("EN","mu0","mu1","sigma.scr","sigma.ds", "p0","p1")])
+  mcmcplots::denplot(imsamp[,c("EN","mu0","mu1","sigma.scr", "sigma.ds","p0","p1")])
+  effectiveSize(imsamp[,c("EN","mu0","mu1","sigma.scr", "sigma.ds","p0","p1")])
   
   # Run 
   # ART : 10 h
