@@ -5,7 +5,7 @@
 # Analyzes are run with NIMBLE, please visit https://r-nimble.org/ for information
 
 
-  
+
 #--- load required packages  -----
 library(nimble)
 library(dplyr)
@@ -106,10 +106,10 @@ dataSCR <- function(M = double(0)){
   eff.cov <- log(eff.cov)
   eff.cov <- as.matrix(eff.cov)
   
-   # as_tibble() %>% 
-   # select(occ1, occ2,occ3,occ4, occ5, occ6, occ7, occ8) %>%
-   # log() %>% 
-   # as.matrix()
+  # as_tibble() %>% 
+  # select(occ1, occ2,occ3,occ4, occ5, occ6, occ7, occ8) %>%
+  # log() %>% 
+  # as.matrix()
   
   eff.cov[eff.cov == - Inf] <-  0
   
@@ -146,15 +146,15 @@ SCRcode <-  nimbleCode({
   #psi ~ dunif(0,1)
   
   log(mu[1:nsites]) <- mu0 + mu1 * habitat[1:nsites]  # abundance model via IPP 
- 
+  
   EN <- sum(mu[1:nsites]) # expected number of individual for the study area
   
   psi <-  EN/M
   
- 
+  
   # logit regression of pbar
- logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seff[1:ntrap,1:nocc]
- pbar_mask[1:ntrap, 1:nocc] <- pbar[1:ntrap, 1:nocc]*eff.ind[1:ntrap,1:nocc] 
+  logit(pbar[1:ntrap, 1:nocc]) <- p0 + p1 * seff[1:ntrap,1:nocc]
+  pbar_mask[1:ntrap, 1:nocc] <- pbar[1:ntrap, 1:nocc]*eff.ind[1:ntrap,1:nocc] 
   
   # cell prob
   probs[1:nsites] <- mu[1:nsites]/EN
@@ -170,13 +170,13 @@ SCRcode <-  nimbleCode({
     # location of AC
     SX[i] <- sites[round(id[i]),1]
     SY[i] <- sites[round(id[i]),2]
-
+    
     #zeros's trick
     nll[i] <- - log(probs[round(id[i])])
     zeros[i] ~ dpois(nll[i])
     
     ## DT: likelihood using new dBernoulliVector4 distribution:
-    y.scr[i, 1:nocc, 1:MAX] ~ dBernoulliVector4(
+    y.scr[i, 1:nocc, 1:MAX] ~ dBernoulliVector5(
       MAX = MAX, ntrap = ntrap, nocc = nocc,
       sigma = sig2, pbar = pbar_mask[1:ntrap,1:nocc], 
       eff.ind = eff.ind[1:ntrap, 1:nocc], SX = SX[i], SY = SY[i],
@@ -200,7 +200,7 @@ dBernoulliVector4 <- nimbleFunction(
       dist <- (SX-traploc[s,1])^2 + (SY-traploc[s,2])^2
       for(j in 1:nocc) {
         p <- pbar[s,j]*exp(-dist/(sigma))
-       # for(i in 1:MAX){
+        # for(i in 1:MAX){
         if(x[j,xInd[j]] == s) { # if(x[j,i] == s) {
           lp <- lp + log(p)
           if(xInd[j] < MAX) xInd[j] <- xInd[j] + 1
@@ -208,7 +208,7 @@ dBernoulliVector4 <- nimbleFunction(
         else {
           lp <- lp + log(1-p)
         }
-     # }
+        # }
       }
     }
     returnType(double())
@@ -246,11 +246,11 @@ dBernoulliVector5 <- nimbleFunction(
       dist <- (SX-traploc[s,1])^2 + (SY-traploc[s,2])^2
       for(j in 1:nocc) {
         p <- pbar[s,j]*exp(-dist/(sigma))
-         for(i in 1:MAX){
+        for(i in 1:MAX){
           if(x[j,i] == s) {
-          lp <- lp + log(p)
+            lp <- lp + log(p)
           } else { lp <- lp + log(1-p) }
-         }
+        }
       }
     }
     returnType(double())
@@ -286,59 +286,60 @@ constants <-  list(nsites = datSCR$nsites, nocc = datSCR$nocc, M = datSCR$M, ntr
 data <- list(sites= datSCR$sites/100000, y.scr = datSCR$y.scr, zeros = rep(0,M))
 
 # Inits
-inits <-  list(z=datSCR$z,id = datSCR$id, mu0=0,mu1=0,sigma = 10^3, p0 = 0, p1= 0)
+inits <-  list(z=datSCR$z, id = c(ACi, sample(1:4356,1)),#datSCR$id,
+               mu0=0,mu1=0,sigma = 1000, p0 = 0, p1= 0)
 
 # NIMBLE RUN ----
 # Nimble mcmc 
 # nimbleMCMC
 t <- system.time(out <- nimbleMCMC(code = SCRcode,
-                  data = data,
-                  constants = constants,
-                  inits = inits,
-                  monitors = c("EN","mu0", "mu1","sigma","p0","p1"),
-                  niter = 100,
-                  nburnin = 20,
-                  nchains = 1))
-traplot(out)
-denplot(out)
-  # Build model
+                                   data = data,
+                                   constants = constants,
+                                   inits = inits,
+                                   monitors = c("EN","mu0", "mu1","sigma","p0","p1","id","z"),
+                                   niter = 100,
+                                   nburnin = 20,
+                                   nchains = 1))
+mcmcplots::traplot(out)
+traplot(out[,c("EN","mu1","sigma")])
+# Build model
 Rmodel <- nimbleModel(SCRcode, constants, data, inits)
- Rmodel$calculate() # - 127631
+Rmodel$calculate() # - 127631
 # configure model
 conf <- configureMCMC(Rmodel)
-    
-  conf$printMonitors()
-  conf$resetMonitors()
-  conf$addMonitors(c('EN','mu0','mu1',"sigma", "p0","p1", "id"))
-  
-  # custom samplers OPTIONNAL
-  conf$printSamplers(byType= TRUE)
-  
- conf$removeSamplers(c("mu0","mu1","p0","p1"))
- 
-  conf$addSampler(c("mu0","mu1"), type ="RW_block")
-  conf$addSampler(c("p0","p1"), type ="RW_block")
-  conf$printSamplers(byType= TRUE)
-  
-  conf$removeSamplers('id')
-  conf$addSampler('id', type = 'RW', scalarComponents = TRUE,
-                  control = list(adaptive = FALSE, reflective = TRUE, scale = datSCR$nsites/3)) ## DT
-  
-  
-  # Build and compile MCMC
-  Rmcmc <- buildMCMC(conf)
-  Cmodel <- compileNimble(Rmodel)
-  Cmcmc <- compileNimble(Rmcmc, project = Cmodel)
 
-  # Run
-  # ART: 11 h 
-t <- system.time(samples <- runMCMC(Cmcmc, niter = 50000, nburnin = 5000, nchains = 2, thin = 10, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
+conf$printMonitors()
+conf$resetMonitors()
+conf$addMonitors(c('EN','mu0','mu1',"sigma", "p0","p1", "id","z"))
+
+# custom samplers OPTIONNAL
+conf$printSamplers(byType= TRUE)
+
+conf$removeSamplers(c("mu0","mu1","p0","p1"))
+
+conf$addSampler(c("mu0","mu1"), type ="RW_block")
+conf$addSampler(c("p0","p1"), type ="RW_block")
+conf$printSamplers(byType= TRUE)
+
+conf$removeSamplers('id')
+conf$addSampler('id', type = 'RW', scalarComponents = TRUE,
+                control = list(adaptive = FALSE, reflective = TRUE, scale = datSCR$nsites/3)) ## DT
+
+
+# Build and compile MCMC
+Rmcmc <- buildMCMC(conf)
+Cmodel <- compileNimble(Rmodel)
+Cmcmc <- compileNimble(Rmcmc, project = Cmodel)
+
+# Run
+# ART: 11 h 
+t <- system.time(samples <- runMCMC(Cmcmc, niter = 50000, nburnin = 5000, nchains = 1, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
 
 # ART : 6 min
 t <- system.time(samples <- runMCMC(Cmcmc, niter = 1000, nburnin = 100, nchains = 1, samplesAsCodaMCMC = TRUE) ) ## DT: use runMCMC
 
 Cmcmc$run(100)
-niter_ad <- 50000
+niter_ad <- 1000
 Cmcmc$run(niter_ad, reset = FALSE)
 scrsamp2 <- as.matrix(Cmcmc$mvSamples)
 samplesSummary(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
@@ -346,8 +347,12 @@ mcmcplots::traplot(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
 mcmcplots::denplot(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
 effectiveSize(scrsamp2[,c("EN","mu0","mu1","sigma", "p0","p1")])
 
-denplot(samples[1000:4000,c("EN","mu0","mu1","sigma")])
-save(scrsamp2, file ="SCR_010422.Rdata")
+mcmcplots::traplot(samples[,c("EN","mu0","mu1","sigma","p0","p1")])
+samplesSummary(samples[,c("EN","mu0","mu1","sigma","p0","p1")])
+coda::effectiveSize(samples[,c("EN","mu0","mu1","sigma","p0","p1")])
+
+SCRsamp <- rbind(samples,scrsamp2)
+save(samples,t, file ="SCR_010422_2.Rdata")
 
 scr_select <- more_samples[c(1000:10000,40000:50000),]
 samplesSummary(scr_select[,c("EN","mu0","mu1","sigma", "p0","p1")])
